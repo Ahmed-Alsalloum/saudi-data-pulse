@@ -1,5 +1,7 @@
 # Saudi Data Pulse
 
+[![CI](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/ci.yml)
+
 A real-time analytics platform for Saudi open data. It continuously ingests
 **Tadawul stock market data** (with GASTAT statistics and city weather coming
 next), runs it through a lakehouse-style pipeline, and serves live dashboards
