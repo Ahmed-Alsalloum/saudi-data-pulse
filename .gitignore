@@ -21,6 +21,10 @@ transform/package-lock.yml
 data/*
 !data/.gitkeep
 
+# Metabase writes runtime files into the mounted plugins dir
+metabase-plugins/*
+!metabase-plugins/.gitkeep
+
 # Env & secrets
 .env
 
