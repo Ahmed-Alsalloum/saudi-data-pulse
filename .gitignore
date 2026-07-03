@@ -11,6 +11,7 @@ __pycache__/
 orchestration/**/target/
 
 # dbt
+transform/.user.yml
 transform/target/
 transform/dbt_packages/
 transform/logs/
