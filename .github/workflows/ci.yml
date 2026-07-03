@@ -27,4 +27,6 @@ jobs:
 
       - name: dbt compile check
         working-directory: transform
-        run: dbt parse --profiles-dir .
+        run: |
+          dbt deps --profiles-dir .
+          dbt parse --profiles-dir .

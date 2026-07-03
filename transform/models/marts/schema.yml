@@ -10,3 +10,16 @@ models:
         tests: [not_null]
       - name: total_volume
         tests: [not_null]
+
+  - name: weather_daily_summary
+    description: Per-city daily weather aggregates from hourly observations.
+    columns:
+      - name: obs_date
+        tests: [not_null]
+      - name: city
+        tests: [not_null]
+      - name: hours_reported
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 24

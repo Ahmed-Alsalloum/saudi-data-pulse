@@ -1,0 +1,10 @@
+.git
+.venv
+data
+__pycache__
+*.pyc
+transform/target
+transform/dbt_packages
+transform/logs
+transform/.user.yml
+.dagster_home

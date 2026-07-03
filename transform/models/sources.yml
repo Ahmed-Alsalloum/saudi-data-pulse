@@ -10,3 +10,11 @@ sources:
           # dbt-duckdb reads the Parquet glob directly; DuckDB accepts a quoted
           # glob path as a table. Same env var the ingestion assets use.
           external_location: "{{ env_var('DATA_LAKE_PATH', '../data/lake') }}/raw/tadawul/*/*.parquet"
+      - name: weather_hourly
+        description: Hourly weather observations for 6 Saudi cities, partitioned by observation date.
+        meta:
+          external_location: "{{ env_var('DATA_LAKE_PATH', '../data/lake') }}/raw/weather/*/*.parquet"
+      - name: econ_indicators
+        description: Annual Saudi macro indicators from the World Bank API (full-refresh snapshot).
+        meta:
+          external_location: "{{ env_var('DATA_LAKE_PATH', '../data/lake') }}/raw/econ_indicators/*/*.parquet"

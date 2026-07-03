@@ -40,6 +40,11 @@ def test_tidy_ohlcv_drops_rows_without_close():
     assert tidy["close"].notna().all()
 
 
+def test_tidy_ohlcv_handles_empty_frame():
+    tidy = tidy_ohlcv(pd.DataFrame(), TICKERS)
+    assert tidy.empty  # non-trading days must not crash partitioned runs
+
+
 def test_tidy_ohlcv_handles_missing_ticker_columns():
     raw = make_yfinance_frame()
     extra = {**TICKERS, "9999.SR": ("Ghost Corp", "Nowhere")}

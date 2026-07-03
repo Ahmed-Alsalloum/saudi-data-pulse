@@ -8,7 +8,8 @@ COPY pyproject.toml ./
 COPY orchestration/ orchestration/
 COPY api/ api/
 COPY transform/ transform/
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . \
+    && cd transform && dbt deps --profiles-dir .
 
 ENV DAGSTER_HOME=/app/.dagster_home \
     DATA_LAKE_PATH=/data/lake \

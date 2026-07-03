@@ -2,15 +2,29 @@
 
 Yahoo Finance exposes Tadawul tickers with an `.SR` suffix (e.g. 2222.SR for
 Saudi Aramco), which gives us free daily market data without an API key.
+
+The asset is partitioned by trading day, so any historical date can be
+backfilled independently:
+
+    dagster asset materialize --select "lake/tadawul_prices" \
+        --partition 2026-06-15 -m orchestration.definitions
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 import yfinance as yf
-from dagster import AssetExecutionContext, AssetKey, MaterializeResult, MetadataValue, asset
+from dagster import (
+    AssetExecutionContext,
+    AssetKey,
+    DailyPartitionsDefinition,
+    MaterializeResult,
+    asset,
+)
 
 from orchestration.resources import DataLakeResource
+
+daily_partitions = DailyPartitionsDefinition(start_date="2026-01-01", timezone="Asia/Riyadh")
 
 # Ticker -> (company, sector). Sectors follow Tadawul's industry group names
 # so the dbt marts can aggregate sector performance without a separate lookup.
@@ -45,6 +59,11 @@ TADAWUL_TICKERS: dict[str, tuple[str, str]] = {
     "4300.SR": ("Dar Al Arkan", "Real Estate"),
 }
 
+EMPTY_COLUMNS = [
+    "trade_date", "ticker", "company", "sector",
+    "open", "high", "low", "close", "volume",
+]
+
 
 def tidy_ohlcv(raw: pd.DataFrame, tickers: dict[str, tuple[str, str]]) -> pd.DataFrame:
     """Reshape yfinance's wide (field, ticker) columns into one tidy long table.
@@ -52,6 +71,9 @@ def tidy_ohlcv(raw: pd.DataFrame, tickers: dict[str, tuple[str, str]]) -> pd.Dat
     Returns columns: trade_date, ticker, company, sector, open, high, low,
     close, volume. Rows where the ticker returned no data are dropped.
     """
+    if raw.empty or not isinstance(raw.columns, pd.MultiIndex):
+        return pd.DataFrame(columns=EMPTY_COLUMNS)
+
     frames = []
     for ticker, (company, sector) in tickers.items():
         if ticker not in raw.columns.get_level_values(level=1):
@@ -65,54 +87,47 @@ def tidy_ohlcv(raw: pd.DataFrame, tickers: dict[str, tuple[str, str]]) -> pd.Dat
         frames.append(df)
 
     if not frames:
-        return pd.DataFrame(
-            columns=[
-                "trade_date", "ticker", "company", "sector",
-                "open", "high", "low", "close", "volume",
-            ]
-        )
+        return pd.DataFrame(columns=EMPTY_COLUMNS)
 
     tidy = pd.concat(frames, ignore_index=True)
     tidy = tidy.dropna(subset=["close"])
     tidy["trade_date"] = pd.to_datetime(tidy["trade_date"]).dt.date
-    cols = ["trade_date", "ticker", "company", "sector", "open", "high", "low", "close", "volume"]
-    return tidy[cols]
+    return tidy[EMPTY_COLUMNS]
 
 
 @asset(
     key=AssetKey(["lake", "tadawul_prices"]),
+    partitions_def=daily_partitions,
     group_name="ingestion",
     description="Daily OHLCV for ~30 major Tadawul tickers, landed as Parquet in the raw zone.",
 )
 def tadawul_prices(
     context: AssetExecutionContext, data_lake: DataLakeResource
 ) -> MaterializeResult:
+    day = date.fromisoformat(context.partition_key)
     raw = yf.download(
         tickers=list(TADAWUL_TICKERS),
-        period="5d",  # small overlap so reruns and holidays self-heal
+        start=day.isoformat(),
+        end=(day + timedelta(days=1)).isoformat(),
         interval="1d",
         group_by="column",
         auto_adjust=True,
         progress=False,
     )
     tidy = tidy_ohlcv(raw, TADAWUL_TICKERS)
+
     if tidy.empty:
-        raise ValueError("yfinance returned no rows for any Tadawul ticker")
+        # Fridays, Saturdays, and market holidays: nothing traded, nothing to land.
+        context.log.info("No Tadawul data for %s (non-trading day?)", day)
+        return MaterializeResult(metadata={"rows": 0, "trade_date": str(day)})
 
-    written = []
-    for trade_date, day_df in tidy.groupby("trade_date"):
-        path = data_lake.write_parquet(
-            day_df, zone="raw", dataset="tadawul", partition=f"date={trade_date}"
-        )
-        written.append(path)
-        context.log.info("Wrote %d rows to %s", len(day_df), path)
-
+    path = data_lake.write_parquet(tidy, zone="raw", dataset="tadawul", partition=f"date={day}")
+    context.log.info("Wrote %d rows to %s", len(tidy), path)
     return MaterializeResult(
         metadata={
             "rows": len(tidy),
             "tickers": tidy["ticker"].nunique(),
-            "latest_trade_date": str(max(tidy["trade_date"])),
-            "partitions_written": MetadataValue.json([str(p) for p in written]),
-            "as_of": str(date.today()),
+            "trade_date": str(day),
+            "path": str(path),
         }
     )

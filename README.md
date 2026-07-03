@@ -3,9 +3,9 @@
 [![CI](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/ci.yml)
 
 A real-time analytics platform for Saudi open data. It continuously ingests
-**Tadawul stock market data** (with GASTAT statistics and city weather coming
-next), runs it through a lakehouse-style pipeline, and serves live dashboards
-and a public JSON API.
+**Tadawul stock market data**, **hourly weather for 6 Saudi cities**, and
+**Saudi macroeconomic indicators**, runs them through a lakehouse-style
+pipeline, and serves live dashboards and a public JSON API.
 
 Built to demonstrate production data-engineering practices end to end:
 asset-based orchestration, ELT with tested transformations, data-quality
@@ -14,11 +14,12 @@ gates that block bad data, and infrastructure as code.
 ## Architecture
 
 ```
-yfinance (.SR tickers)          GASTAT open data*        OpenWeatherMap*
+yfinance (.SR tickers)     World Bank API (SAU)      Open-Meteo (6 cities)
+   daily, partitioned         weekly snapshot            hourly
         │                              │                        │
         └──────────────┬───────────────┴────────────────────────┘
                        ▼
-              Dagster ingestion assets          * Phase 2
+              Dagster ingestion assets
                        │
                        ▼
         Data lake — raw zone (Parquet, partitioned by date)
@@ -46,10 +47,13 @@ code runs on a laptop, in Docker Compose, or on a cloud VM.
 python -m venv .venv
 .venv\Scripts\Activate.ps1          # source .venv/bin/activate on Linux/macOS
 pip install -e ".[dev]"
+cd transform && dbt deps --profiles-dir . && cd ..
 
-# Run the full pipeline once: ingest Tadawul prices -> build marts + tests
-# (explicit selection because "*" gets glob-expanded by the CLI on Windows)
-dagster asset materialize --select "lake/tadawul_prices+,stg_tadawul_prices+" -m orchestration.definitions
+# Ingest one trading day (any partition since 2026-01-01 can be backfilled)
+dagster asset materialize --select "lake/tadawul_prices" --partition 2026-07-02 -m orchestration.definitions
+
+# Ingest weather + macro indicators, then build marts + quality gates
+dagster asset materialize --select "lake/weather_hourly,lake/econ_indicators,stg_tadawul_prices+,stg_weather+,stg_econ_indicators+" -m orchestration.definitions
 
 # Explore the asset graph / schedules in the Dagster UI
 dagster dev                          # http://localhost:3000
@@ -74,6 +78,8 @@ docker compose up --build
 | --- | --- |
 | `GET /api/v1/market/summary` | Per-sector daily performance (volume, avg move, top gainer/loser) |
 | `GET /api/v1/market/prices/{ticker}` | Recent daily OHLCV for one ticker, e.g. `2222.SR` |
+| `GET /api/v1/weather/{city}` | Recent hourly observations, e.g. `riyadh`, `jeddah`, `dammam` |
+| `GET /api/v1/econ` | Latest Saudi macro indicators (CPI, GDP growth, population, unemployment) |
 
 ## Project layout
 
@@ -87,7 +93,8 @@ infra/           Terraform (Phase 3)
 ## Roadmap
 
 - [x] Phase 1 — Tadawul ingestion → dbt marts → dashboard/API, daily schedule
-- [ ] Phase 2 — GASTAT + weather sources, incremental partitions, dbt-expectations quality gates with alerting, MinIO/S3 lake
+- [x] Phase 2 — weather (Open-Meteo) + macro indicators (World Bank) sources, daily-partitioned ingestion with backfills, dbt-expectations quality gates, failure alerting via webhook
+- [ ] Phase 2.5 — MinIO/S3 lake backend (the GASTAT portal blocks API clients at its WAF; macro data comes from the World Bank's stable API instead)
 - [ ] Phase 3 — Terraform deploy to a VM, HTTPS, uptime monitoring, live public URL
 - [ ] Phase 4 — hosted dbt docs, architecture write-up, cost/latency numbers
 

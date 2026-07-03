@@ -54,3 +54,28 @@ def ticker_prices(ticker: str, limit: int = 30) -> list[dict]:
     if not rows:
         raise HTTPException(status_code=404, detail=f"No data for ticker {ticker}")
     return rows
+
+
+@app.get("/api/v1/weather/{city}")
+def city_weather(city: str, hours: int = 24) -> list[dict]:
+    """Recent hourly observations for one city (riyadh, jeddah, dammam, makkah, madinah, abha)."""
+    rows = query(
+        "select * from stg_weather where city = ? order by observed_at desc limit ?",
+        [city.lower(), min(hours, 168)],
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No weather data for city {city}")
+    return rows
+
+
+@app.get("/api/v1/econ")
+def econ_indicators() -> list[dict]:
+    """Latest value per Saudi macro indicator (CPI, GDP growth, population, unemployment)."""
+    return query(
+        """
+        select indicator_code, indicator_name, year, value
+        from stg_econ_indicators
+        qualify row_number() over (partition by indicator_code order by year desc) = 1
+        order by indicator_code
+        """
+    )

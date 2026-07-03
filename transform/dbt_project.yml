@@ -5,6 +5,10 @@ profile: saudi_data_pulse
 model-paths: ["models"]
 test-paths: ["tests"]
 
+vars:
+  # Required by dbt-date (pulled in by dbt-expectations) for recency tests.
+  "dbt_date:time_zone": "Asia/Riyadh"
+
 # Everything is materialized as tables so the DuckDB warehouse file is
 # self-contained: the API and Metabase read it without needing access to the
 # lake's Parquet paths (which are relative to this directory at build time).

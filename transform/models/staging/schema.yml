@@ -5,10 +5,60 @@ models:
     description: Cleaned, deduplicated daily prices — one row per ticker per trading day.
     columns:
       - name: trade_date
-        tests: [not_null]
+        tests:
+          - not_null
+          # Freshness gate: Tadawul closes Fri/Sat, so 7 days tolerates the
+          # weekend plus a holiday before the pipeline is declared stale.
+          - dbt_expectations.expect_row_values_to_have_recent_data:
+              datepart: day
+              interval: 7
       - name: ticker
         tests: [not_null]
       - name: close_price
-        tests: [not_null]
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              strictly: true
+      - name: volume
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
       - name: sector
+        tests: [not_null]
+
+  - name: stg_weather
+    description: Deduplicated hourly weather — one row per city per hour.
+    columns:
+      - name: observed_at
+        tests:
+          - not_null
+          - dbt_expectations.expect_row_values_to_have_recent_data:
+              datepart: hour
+              interval: 6
+      - name: city
+        tests: [not_null]
+      - name: temperature_c
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: -15
+              max_value: 60
+      - name: humidity_pct
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+
+  - name: stg_econ_indicators
+    description: Annual Saudi macro indicators, one row per indicator per year.
+    columns:
+      - name: indicator_code
+        tests: [not_null]
+      - name: year
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1960
+              max_value: 2100
+      - name: value
         tests: [not_null]
