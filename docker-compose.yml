@@ -21,7 +21,9 @@ services:
       - ./data:/data:ro
 
   metabase:
-    image: metabase/metabase:latest
+    build:
+      context: .
+      dockerfile: metabase.Dockerfile
     ports:
       - "3001:3000"
     volumes:
