@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: lake
+    description: Raw zone of the data lake — Parquet files written by Dagster ingestion assets.
+    tables:
+      - name: tadawul_prices
+        description: Daily OHLCV per Tadawul ticker, partitioned by trade date.
+        meta:
+          # dbt-duckdb reads the Parquet glob directly; DuckDB accepts a quoted
+          # glob path as a table. Same env var the ingestion assets use.
+          external_location: "{{ env_var('DATA_LAKE_PATH', '../data/lake') }}/raw/tadawul/*/*.parquet"

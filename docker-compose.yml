@@ -1,0 +1,52 @@
+services:
+  dagster:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATA_LAKE_PATH: /data/lake
+      DUCKDB_PATH: /data/warehouse.duckdb
+    volumes:
+      - ./data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DUCKDB_PATH: /data/warehouse.duckdb
+    volumes:
+      - ./data:/data:ro
+
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - metabase-data:/metabase-data
+      # DuckDB community driver jar goes in ./metabase-plugins (see README)
+      - ./metabase-plugins:/plugins
+      - ./data:/data:ro
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+      MB_PLUGINS_DIR: /plugins
+
+  # Object storage for the lake — wired in as DATA_LAKE_PATH=s3://lake in
+  # Phase 2 (DuckDB httpfs + s3fs). Until then the services share ./data.
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+
+volumes:
+  metabase-data:
+  minio-data:

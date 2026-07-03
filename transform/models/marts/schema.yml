@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: daily_market_summary
+    description: Per-sector daily performance — volume, average move, top gainer/loser.
+    columns:
+      - name: trade_date
+        tests: [not_null]
+      - name: sector
+        tests: [not_null]
+      - name: total_volume
+        tests: [not_null]

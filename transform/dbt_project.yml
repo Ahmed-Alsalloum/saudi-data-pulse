@@ -1,0 +1,16 @@
+name: saudi_data_pulse
+version: "1.0.0"
+profile: saudi_data_pulse
+
+model-paths: ["models"]
+test-paths: ["tests"]
+
+# Everything is materialized as tables so the DuckDB warehouse file is
+# self-contained: the API and Metabase read it without needing access to the
+# lake's Parquet paths (which are relative to this directory at build time).
+models:
+  saudi_data_pulse:
+    staging:
+      +materialized: table
+    marts:
+      +materialized: table

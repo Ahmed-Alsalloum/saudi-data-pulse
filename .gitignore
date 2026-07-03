@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Dagster
+.dagster_home/
+orchestration/**/target/
+
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/logs/
+transform/package-lock.yml
+
+# Data lake & warehouse (never commit data)
+data/*
+!data/.gitkeep
+
+# Env & secrets
+.env
+
+# OS
+Thumbs.db
+.DS_Store

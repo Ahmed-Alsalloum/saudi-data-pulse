@@ -1,0 +1,8 @@
+saudi_data_pulse:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Relative paths resolve from the transform/ directory (dbt's cwd).
+      path: "{{ env_var('DUCKDB_PATH', '../data/warehouse.duckdb') }}"
+      threads: 4

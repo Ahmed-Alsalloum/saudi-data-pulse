@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: stg_tadawul_prices
+    description: Cleaned, deduplicated daily prices — one row per ticker per trading day.
+    columns:
+      - name: trade_date
+        tests: [not_null]
+      - name: ticker
+        tests: [not_null]
+      - name: close_price
+        tests: [not_null]
+      - name: sector
+        tests: [not_null]
