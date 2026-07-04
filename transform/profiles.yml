@@ -1,8 +1,24 @@
 saudi_data_pulse:
-  target: dev
+  # DBT_TARGET=s3 (set by docker-compose) points DuckDB at the MinIO lake;
+  # the default dev target reads local Parquet folders. Warehouse path is the
+  # same in both — only where the raw zone lives changes.
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
   outputs:
     dev:
       type: duckdb
       # Relative paths resolve from the transform/ directory (dbt's cwd).
       path: "{{ env_var('DUCKDB_PATH', '../data/warehouse.duckdb') }}"
       threads: 4
+    s3:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', '../data/warehouse.duckdb') }}"
+      threads: 4
+      extensions:
+        - httpfs
+      settings:
+        s3_endpoint: "{{ env_var('DUCKDB_S3_ENDPOINT', 'minio:9000') }}"
+        s3_access_key_id: "{{ env_var('AWS_ACCESS_KEY_ID', 'minioadmin') }}"
+        s3_secret_access_key: "{{ env_var('AWS_SECRET_ACCESS_KEY', 'minioadmin') }}"
+        s3_region: "{{ env_var('DUCKDB_S3_REGION', 'us-east-1') }}"
+        s3_url_style: path
+        s3_use_ssl: "{{ env_var('DUCKDB_S3_USE_SSL', 'false') }}"

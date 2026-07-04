@@ -4,10 +4,21 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATA_LAKE_PATH: /data/lake
+      # Lake lives in MinIO (object storage); warehouse stays a local file so
+      # the API and Metabase can keep opening it read-only from the volume.
+      DATA_LAKE_PATH: s3://lake
       DUCKDB_PATH: /data/warehouse.duckdb
+      DBT_TARGET: s3
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
+      S3_ENDPOINT_URL: http://minio:9000
+      DUCKDB_S3_ENDPOINT: minio:9000
     volumes:
       - ./data:/data
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
 
   api:
     build:
@@ -35,8 +46,8 @@ services:
       MB_DB_FILE: /metabase-data/metabase.db
       MB_PLUGINS_DIR: /plugins
 
-  # Object storage for the lake — wired in as DATA_LAKE_PATH=s3://lake in
-  # Phase 2 (DuckDB httpfs + s3fs). Until then the services share ./data.
+  # Object storage for the lake — Dagster writes s3://lake/... via s3fs and
+  # dbt/DuckDB reads it back through httpfs (see transform/profiles.yml).
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -48,6 +59,21 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  # One-shot bucket bootstrap: creates the `lake` bucket if missing.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "mc alias set local http://minio:9000 minioadmin minioadmin
+      && mc mb --ignore-existing local/lake"
 
 volumes:
   metabase-data:

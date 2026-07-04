@@ -20,10 +20,23 @@ class DataLakeResource(ConfigurableResource):
 
     root: str = os.getenv("DATA_LAKE_PATH", DEFAULT_LAKE_PATH)
 
+    def storage_options(self) -> dict | None:
+        """fsspec options for s3:// roots; None for local paths.
+
+        S3_ENDPOINT_URL points s3fs at MinIO (or any S3-compatible store);
+        without it s3fs falls back to real AWS. Credentials come from the
+        standard AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars.
+        """
+        if not self.root.startswith("s3://"):
+            return None
+        endpoint = os.getenv("S3_ENDPOINT_URL")
+        return {"client_kwargs": {"endpoint_url": endpoint}} if endpoint else {}
+
     def write_parquet(self, df: pd.DataFrame, zone: str, dataset: str, partition: str) -> str:
         target = f"{self.root}/{zone}/{dataset}/{partition}/part.parquet"
-        if not target.startswith("s3://"):
+        options = self.storage_options()
+        if options is None:
             Path(target).parent.mkdir(parents=True, exist_ok=True)
         # pandas + pyarrow handle both local paths and s3:// URIs (via s3fs)
-        df.to_parquet(target, index=False)
+        df.to_parquet(target, index=False, storage_options=options or None)
         return target

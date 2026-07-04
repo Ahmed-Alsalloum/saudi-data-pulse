@@ -83,6 +83,7 @@ docker compose up --build
 - Dagster UI → http://localhost:3000 (materialize all assets from the UI)
 - API → http://localhost:8000/docs
 - Metabase → http://localhost:3001 (add the [DuckDB community driver](https://github.com/motherduckdb/metabase_duckdb_driver) jar to `./metabase-plugins/` first, then connect it to `/data/warehouse.duckdb`)
+- MinIO console → http://localhost:9001 (`minioadmin`/`minioadmin`) — in Docker the lake is real object storage: Dagster writes `s3://lake/...` through s3fs and dbt/DuckDB reads it back through httpfs, the same code path an AWS S3 deployment would use
 
 ## API
 
@@ -108,7 +109,7 @@ scripts/         JSON export for the dashboard
 - [x] Phase 1 — Tadawul ingestion → dbt marts → dashboard/API, daily schedule
 - [x] Phase 2 — weather (Open-Meteo) + macro indicators (World Bank) sources, daily-partitioned ingestion with backfills, dbt-expectations quality gates, failure alerting via webhook
 - [x] Phase 3 — public deployment at $0: GitHub Actions cron pipeline → `data` branch → GitHub Pages dashboard + Hugging Face Space API
-- [ ] Phase 3.5 — MinIO/S3 lake backend (the GASTAT portal blocks API clients at its WAF; macro data comes from the World Bank's stable API instead)
+- [x] Phase 3.5 — S3-compatible lake backend: Docker mode writes/reads the lake via MinIO (s3fs + DuckDB httpfs), switchable to AWS S3 with env vars only
 - [ ] Phase 4 — hosted dbt docs, architecture write-up, cost/latency numbers
 - [ ] Phase 5 (optional) — Terraform deploy to an always-on VM (full Dagster UI + Metabase in the cloud), HTTPS, uptime monitoring
 
