@@ -1,8 +1,11 @@
-"""Ingest hourly weather observations for major Saudi cities via Open-Meteo.
+"""Ingest hourly weather observations for major Saudi cities.
 
-Open-Meteo is keyless and free for non-commercial use. Each run fetches a
-48-hour lookback window, so hourly runs overlap heavily and the pipeline
-self-heals across missed runs; staging deduplicates on (city, observed_at).
+Primary source: Open-Meteo (keyless, returns a 48h lookback window so hourly
+runs overlap and self-heal). Open-Meteo throttles shared datacenter IPs, so
+when it is unreachable (e.g. from GitHub Actions runners) the asset falls
+back to MET Norway's api.met.no, which allows automated clients that send a
+descriptive User-Agent and returns current conditions per city. Staging
+deduplicates on (city, observed_at) either way.
 """
 
 import pandas as pd
@@ -12,6 +15,8 @@ from dagster import AssetExecutionContext, AssetKey, MaterializeResult, RetryPol
 from orchestration.resources import DataLakeResource
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+MET_NO_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
+USER_AGENT = "saudi-data-pulse/1.0 (https://github.com/akaD1D/saudi-data-pulse)"
 
 CITIES: dict[str, tuple[float, float]] = {
     "riyadh": (24.7136, 46.6753),
@@ -21,6 +26,8 @@ CITIES: dict[str, tuple[float, float]] = {
     "madinah": (24.5247, 39.5692),
     "abha": (18.2465, 42.5117),
 }
+
+COLUMNS = ["observed_at", "city", "temperature_c", "humidity_pct", "wind_speed_kmh"]
 
 
 def tidy_weather(city: str, payload: dict) -> pd.DataFrame:
@@ -36,41 +43,86 @@ def tidy_weather(city: str, payload: dict) -> pd.DataFrame:
     )
     df["city"] = city
     df = df.dropna(subset=["temperature_c"])
-    return df[["observed_at", "city", "temperature_c", "humidity_pct", "wind_speed_kmh"]]
+    return df[COLUMNS]
+
+
+def tidy_met_no(city: str, payload: dict, max_hours: int = 3) -> pd.DataFrame:
+    """Extract the first few (i.e. current) hours from a met.no locationforecast.
+
+    met.no timestamps are UTC; convert to Asia/Riyadh naive to match the
+    Open-Meteo rows already in the lake. Wind arrives in m/s -> km/h.
+    """
+    rows = []
+    for entry in payload["properties"]["timeseries"][:max_hours]:
+        details = entry["data"]["instant"]["details"]
+        if "air_temperature" not in details:
+            continue
+        observed_at = (
+            pd.to_datetime(entry["time"]).tz_convert("Asia/Riyadh").tz_localize(None)
+        )
+        rows.append(
+            {
+                "observed_at": observed_at,
+                "city": city,
+                "temperature_c": details["air_temperature"],
+                "humidity_pct": details.get("relative_humidity"),
+                "wind_speed_kmh": round(details.get("wind_speed", 0) * 3.6, 1),
+            }
+        )
+    return pd.DataFrame(rows, columns=COLUMNS)
+
+
+def _fetch_open_meteo(city: str, lat: float, lon: float) -> pd.DataFrame:
+    response = requests.get(
+        OPEN_METEO_URL,
+        params={
+            "latitude": lat,
+            "longitude": lon,
+            "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m",
+            "past_days": 2,
+            "forecast_days": 1,
+            "timezone": "Asia/Riyadh",
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    return tidy_weather(city, response.json())
+
+
+def _fetch_met_no(city: str, lat: float, lon: float) -> pd.DataFrame:
+    response = requests.get(
+        MET_NO_URL,
+        params={"lat": lat, "lon": lon},
+        headers={"User-Agent": USER_AGENT},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return tidy_met_no(city, response.json())
 
 
 @asset(
     key=AssetKey(["lake", "weather_hourly"]),
     group_name="ingestion",
-    description="Hourly temperature/humidity/wind for 6 Saudi cities, from Open-Meteo.",
+    description="Hourly weather for 6 Saudi cities (Open-Meteo, met.no fallback).",
     retry_policy=RetryPolicy(max_retries=2, delay=20),
 )
 def weather_hourly(
     context: AssetExecutionContext, data_lake: DataLakeResource
 ) -> MaterializeResult:
-    frames = []
-    for city, (lat, lon) in CITIES.items():
-        response = requests.get(
-            OPEN_METEO_URL,
-            params={
-                "latitude": lat,
-                "longitude": lon,
-                "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m",
-                "past_days": 2,
-                "forecast_days": 1,
-                "timezone": "Asia/Riyadh",
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
-        frames.append(tidy_weather(city, response.json()))
+    source = "open-meteo"
+    try:
+        frames = [_fetch_open_meteo(city, lat, lon) for city, (lat, lon) in CITIES.items()]
+    except requests.RequestException as exc:
+        context.log.warning("Open-Meteo unreachable (%s); falling back to met.no", exc)
+        source = "met.no"
+        frames = [_fetch_met_no(city, lat, lon) for city, (lat, lon) in CITIES.items()]
 
     observations = pd.concat(frames, ignore_index=True)
-    # The forecast_days window includes future hours; keep only actual observations.
+    # Forecast windows include future hours; keep only actual observations.
     now_riyadh = pd.Timestamp.now(tz="Asia/Riyadh").tz_localize(None)
     observations = observations[observations["observed_at"] <= now_riyadh]
     if observations.empty:
-        raise ValueError("Open-Meteo returned no past observations for any city")
+        raise ValueError(f"{source} returned no past observations for any city")
 
     written = 0
     for obs_date, day_df in observations.groupby(observations["observed_at"].dt.date):
@@ -81,6 +133,7 @@ def weather_hourly(
         metadata={
             "rows": written,
             "cities": observations["city"].nunique(),
+            "source": source,
             "latest_observation": str(observations["observed_at"].max()),
         }
     )
