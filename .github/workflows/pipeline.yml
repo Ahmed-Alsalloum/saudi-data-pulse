@@ -91,9 +91,12 @@ jobs:
           cd data
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git add -A
           git commit -m "Data update $(date -u +%FT%TZ) [${{ steps.target.outputs.target }}]" || { echo "no changes"; exit 0; }
-          git push origin data
+          # HEAD:data works whether the local branch is 'data' (our init) or
+          # 'master' (left behind by a failed checkout of a missing branch)
+          git push origin HEAD:data
 
       - name: Alert on failure
         if: failure()
