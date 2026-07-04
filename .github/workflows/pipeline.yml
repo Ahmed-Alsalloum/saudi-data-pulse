@@ -1,0 +1,107 @@
+name: Pipeline
+
+on:
+  schedule:
+    - cron: "20 * * * *"      # hourly: weather
+    - cron: "30 21 * * 0-4"   # 00:30 Riyadh Mon-Fri: previous trading day's Tadawul candle
+    - cron: "0 9 * * 0"       # weekly Sunday: econ indicators
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to ingest (weather | tadawul | econ | all)"
+        default: "all"
+      backfill_partition:
+        description: "Optional YYYY-MM-DD Tadawul partition to backfill"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout data branch
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: data
+          path: data
+
+      - name: Init data branch if missing
+        run: |
+          if [ ! -d data/.git ]; then
+            mkdir -p data && cd data
+            git init -b data
+            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -e .
+          cd transform && dbt deps --profiles-dir .
+
+      - name: Decide target
+        id: target
+        run: |
+          case "${{ github.event.schedule }}" in
+            "20 * * * *")    echo "target=weather" >> "$GITHUB_OUTPUT" ;;
+            "30 21 * * 0-4") echo "target=tadawul" >> "$GITHUB_OUTPUT" ;;
+            "0 9 * * 0")     echo "target=econ"    >> "$GITHUB_OUTPUT" ;;
+            *)               echo "target=${{ inputs.target || 'all' }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Ingest weather
+        if: contains(fromJSON('["weather","all"]'), steps.target.outputs.target)
+        run: dagster asset materialize --select "lake/weather_hourly" -m orchestration.definitions
+
+      - name: Ingest econ indicators
+        if: contains(fromJSON('["econ","all"]'), steps.target.outputs.target)
+        run: dagster asset materialize --select "lake/econ_indicators" -m orchestration.definitions
+
+      - name: Ingest Tadawul (previous trading day or backfill)
+        if: contains(fromJSON('["tadawul","all"]'), steps.target.outputs.target)
+        run: |
+          PARTITION="${{ inputs.backfill_partition }}"
+          if [ -z "$PARTITION" ]; then
+            PARTITION=$(TZ=Asia/Riyadh date -d yesterday +%F)
+          fi
+          echo "Materializing Tadawul partition $PARTITION"
+          dagster asset materialize --select "lake/tadawul_prices" --partition "$PARTITION" -m orchestration.definitions
+
+      - name: Transform + quality gates (dbt build)
+        run: dagster asset materialize --select "stg_tadawul_prices+,stg_weather+,stg_econ_indicators+" -m orchestration.definitions
+
+      - name: Export dashboard JSON
+        run: python scripts/export_json.py
+
+      - name: Push data branch
+        run: |
+          cd data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Data update $(date -u +%FT%TZ) [${{ steps.target.outputs.target }}]" || { echo "no changes"; exit 0; }
+          git push origin data
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -n "$ALERT_WEBHOOK_URL" ]; then
+            curl -s -X POST -H "Content-Type: application/json" \
+              -d "{\"text\":\":rotating_light: Saudi Data Pulse pipeline failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+              "$ALERT_WEBHOOK_URL" || true
+          fi

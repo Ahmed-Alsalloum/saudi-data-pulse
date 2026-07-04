@@ -1,0 +1,70 @@
+name: Deploy API to Hugging Face Space
+
+# Requires (both free):
+#   - repo secret  HF_TOKEN: a Hugging Face access token with write scope
+#   - repo variable HF_SPACE: the Space id, e.g. "your-hf-username/saudi-data-pulse"
+# Skips gracefully when they aren't configured.
+
+on:
+  push:
+    branches: [main]
+    paths: ["api/**", ".github/workflows/deploy-api.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage Space repo
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "HF_TOKEN secret or HF_SPACE variable not set - skipping deploy."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          mkdir -p space/api
+          cp api/main.py api/__init__.py space/api/
+
+          cat > space/Dockerfile <<'EOF'
+          FROM python:3.12-slim
+          WORKDIR /app
+          RUN pip install --no-cache-dir fastapi "uvicorn[standard]" duckdb requests
+          COPY api/ api/
+          ENV DUCKDB_PATH=/tmp/warehouse.duckdb
+          ENV WAREHOUSE_URL=https://raw.githubusercontent.com/akaD1D/saudi-data-pulse/refs/heads/data/warehouse.duckdb
+          EXPOSE 7860
+          CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]
+          EOF
+
+          cat > space/README.md <<'EOF'
+          ---
+          title: Saudi Data Pulse API
+          emoji: "\U0001F4C8"
+          colorFrom: green
+          colorTo: blue
+          sdk: docker
+          app_port: 7860
+          pinned: false
+          ---
+
+          # Saudi Data Pulse API
+
+          Live read API over a Dagster + dbt + DuckDB pipeline for Saudi open data.
+          Interactive docs at `/docs`. Source: https://github.com/akaD1D/saudi-data-pulse
+          EOF
+
+      - name: Push to Space
+        if: env.SKIP != '1'
+        run: |
+          cd space
+          git init -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy from ${{ github.sha }}"
+          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" main

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saudi Data Pulse — Live Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #0f1420; --card: #1a2233; --border: #2a3550;
+    --text: #e8ecf4; --muted: #8b96ad; --accent: #35c48d; --red: #e0596e;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; padding: 24px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  h1 { font-size: 1.6rem; }
+  h1 .pulse { color: var(--accent); }
+  .links a { color: var(--muted); margin-left: 14px; text-decoration: none; font-size: .9rem; }
+  .links a:hover { color: var(--accent); }
+  #updated { color: var(--muted); font-size: .85rem; margin-bottom: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card .label { color: var(--muted); font-size: .8rem; margin-bottom: 6px; }
+  .card .value { font-size: 1.5rem; font-weight: 600; }
+  .card .year { color: var(--muted); font-size: .75rem; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+  .panel h2 { font-size: 1.05rem; margin-bottom: 14px; color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  .up { color: var(--accent); } .down { color: var(--red); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+  #error { color: var(--red); padding: 20px; display: none; }
+  footer { color: var(--muted); font-size: .8rem; text-align: center; margin-top: 8px; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Saudi Data <span class="pulse">Pulse</span></h1>
+    <nav class="links">
+      <a href="https://github.com/akaD1D/saudi-data-pulse">GitHub</a>
+      <a href="https://github.com/akaD1D/saudi-data-pulse#api">API docs</a>
+    </nav>
+  </header>
+  <div id="updated">loading…</div>
+  <div id="error">Data isn't available yet — the pipeline may still be seeding. Try again in a few minutes.</div>
+
+  <div class="cards" id="econ-cards"></div>
+
+  <div class="panel">
+    <h2>Tadawul — trading volume by sector (latest session)</h2>
+    <canvas id="volumeChart" height="110"></canvas>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Top movers by sector</h2>
+      <table id="movers"><thead><tr><th>Sector</th><th>Top gainer</th><th>%</th><th>Top loser</th><th>%</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="panel">
+      <h2>Average temperature — Saudi cities (7 days)</h2>
+      <canvas id="weatherChart" height="180"></canvas>
+    </div>
+  </div>
+
+  <footer>
+    Data: Yahoo Finance (Tadawul .SR) · Open-Meteo · World Bank —
+    pipeline: Dagster + dbt + DuckDB, orchestrated by GitHub Actions ·
+    <a href="https://github.com/akaD1D/saudi-data-pulse">source</a>
+  </footer>
+</div>
+
+<script>
+const BASE = "https://raw.githubusercontent.com/akaD1D/saudi-data-pulse/refs/heads/data/exports";
+const CITY_COLORS = { riyadh:"#35c48d", jeddah:"#5b9dfa", dammam:"#e0a34e", makkah:"#e0596e", madinah:"#a97ff2", abha:"#4ecbd8" };
+const ECON_LABELS = {
+  "FP.CPI.TOTL.ZG": ["Inflation (CPI)", v => v.toFixed(2) + "%"],
+  "NY.GDP.MKTP.KD.ZG": ["GDP growth", v => v.toFixed(2) + "%"],
+  "SP.POP.TOTL": ["Population", v => (v/1e6).toFixed(1) + "M"],
+  "SL.UEM.TOTL.ZS": ["Unemployment", v => v.toFixed(1) + "%"],
+};
+Chart.defaults.color = "#8b96ad";
+Chart.defaults.borderColor = "#2a3550";
+
+async function fetchJson(name) {
+  const r = await fetch(`${BASE}/${name}?t=${Date.now()}`);
+  if (!r.ok) throw new Error(`${name}: ${r.status}`);
+  return r.json();
+}
+
+(async () => {
+  try {
+    const [meta, market, weather, econ] = await Promise.all(
+      ["meta.json","market_summary.json","weather_daily.json","econ.json"].map(fetchJson));
+
+    document.getElementById("updated").textContent =
+      "Last updated " + new Date(meta.updated_at).toLocaleString() + " (auto-refreshes hourly via GitHub Actions)";
+
+    // Econ cards: latest year per indicator
+    const latest = {};
+    econ.forEach(r => { if (!latest[r.indicator_code] || r.year > latest[r.indicator_code].year) latest[r.indicator_code] = r; });
+    document.getElementById("econ-cards").innerHTML = Object.entries(ECON_LABELS)
+      .filter(([code]) => latest[code])
+      .map(([code,[label,fmt]]) => `<div class="card"><div class="label">${label}</div>
+        <div class="value">${fmt(latest[code].value)}</div><div class="year">Saudi Arabia · ${latest[code].year} · World Bank</div></div>`)
+      .join("");
+
+    // Latest trading session slice
+    const latestDate = market.reduce((m,r) => r.trade_date > m ? r.trade_date : m, "");
+    const session = market.filter(r => r.trade_date === latestDate);
+
+    new Chart(document.getElementById("volumeChart"), {
+      type: "bar",
+      data: { labels: session.map(r => r.sector),
+              datasets: [{ data: session.map(r => r.total_volume), backgroundColor: "#35c48d88", borderColor: "#35c48d", borderWidth: 1 }] },
+      options: { plugins: { legend: { display:false }, title: { display:true, text: `Session: ${latestDate}` } },
+                 scales: { y: { ticks: { callback: v => (v/1e6).toFixed(1)+"M" } } } }
+    });
+
+    document.querySelector("#movers tbody").innerHTML = session.map(r => `<tr>
+      <td>${r.sector}</td><td>${r.top_gainer}</td><td class="up">+${r.top_gainer_change_pct}%</td>
+      <td>${r.top_loser}</td><td class="down">${r.top_loser_change_pct}%</td></tr>`).join("");
+
+    // Weather lines: one dataset per city
+    const dates = [...new Set(weather.map(r => r.obs_date))].sort();
+    const cities = [...new Set(weather.map(r => r.city))];
+    new Chart(document.getElementById("weatherChart"), {
+      type: "line",
+      data: { labels: dates, datasets: cities.map(c => ({
+        label: c, data: dates.map(d => (weather.find(r => r.city===c && r.obs_date===d) || {}).avg_temperature_c ?? null),
+        borderColor: CITY_COLORS[c] || "#8b96ad", backgroundColor: "transparent", tension: .3, pointRadius: 2 })) },
+      options: { plugins: { legend: { position: "bottom" } }, scales: { y: { title: { display:true, text:"°C" } } } }
+    });
+  } catch (e) {
+    console.error(e);
+    document.getElementById("updated").textContent = "";
+    document.getElementById("error").style.display = "block";
+  }
+})();
+</script>
+</body>
+</html>

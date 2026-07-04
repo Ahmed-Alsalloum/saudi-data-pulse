@@ -7,6 +7,16 @@ A real-time analytics platform for Saudi open data. It continuously ingests
 **Saudi macroeconomic indicators**, runs them through a lakehouse-style
 pipeline, and serves live dashboards and a public JSON API.
 
+## 🔴 Live
+
+- **Dashboard**: https://akad1d.github.io/saudi-data-pulse/ — live charts, refreshed hourly
+- **API**: hosted on a Hugging Face Space (interactive docs at `/docs`)
+- **Data**: the [`data` branch](https://github.com/akaD1D/saudi-data-pulse/tree/data) holds the Parquet lake, DuckDB warehouse, and JSON exports, updated by [scheduled GitHub Actions runs](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/pipeline.yml)
+
+The platform runs in two modes with the **same asset definitions**:
+local (Docker Compose: Dagster daemon + UI, Metabase, MinIO) and cloud
+(GitHub Actions invokes the identical Dagster assets on cron — $0 hosting).
+
 Built to demonstrate production data-engineering practices end to end:
 asset-based orchestration, ELT with tested transformations, data-quality
 gates that block bad data, and infrastructure as code.
@@ -94,7 +104,8 @@ infra/           Terraform (Phase 3)
 
 - [x] Phase 1 — Tadawul ingestion → dbt marts → dashboard/API, daily schedule
 - [x] Phase 2 — weather (Open-Meteo) + macro indicators (World Bank) sources, daily-partitioned ingestion with backfills, dbt-expectations quality gates, failure alerting via webhook
-- [ ] Phase 2.5 — MinIO/S3 lake backend (the GASTAT portal blocks API clients at its WAF; macro data comes from the World Bank's stable API instead)
+- [x] Phase 3 — public deployment at $0: GitHub Actions cron pipeline → `data` branch → GitHub Pages dashboard + Hugging Face Space API
+- [ ] Phase 3.5 — MinIO/S3 lake backend (the GASTAT portal blocks API clients at its WAF; macro data comes from the World Bank's stable API instead)
 - [ ] Phase 3 — Terraform deploy to a VM, HTTPS, uptime monitoring, live public URL
 - [ ] Phase 4 — hosted dbt docs, architecture write-up, cost/latency numbers
 
