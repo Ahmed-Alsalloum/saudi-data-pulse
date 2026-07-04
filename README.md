@@ -13,6 +13,8 @@ pipeline, and serves live dashboards and a public JSON API.
 - **API**: hosted on a Hugging Face Space (interactive docs at `/docs`)
 - **Data**: the [`data` branch](https://github.com/akaD1D/saudi-data-pulse/tree/data) holds the Parquet lake, DuckDB warehouse, and JSON exports, updated by [scheduled GitHub Actions runs](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/pipeline.yml)
 
+[![Live dashboard](docs/assets/dashboard.png)](https://akad1d.github.io/saudi-data-pulse/)
+
 The platform runs in two modes with the **same asset definitions**:
 local (Docker Compose: Dagster daemon + UI, Metabase, MinIO) and cloud
 (GitHub Actions invokes the identical Dagster assets on cron — $0 hosting).
@@ -97,7 +99,8 @@ docker compose up --build
 orchestration/   Dagster assets, resources, schedules
 transform/       dbt project (staging + marts + data-quality tests)
 api/             FastAPI read API over the DuckDB warehouse
-infra/           Terraform (Phase 3)
+docs/            GitHub Pages dashboard (static, Chart.js)
+scripts/         JSON export for the dashboard
 ```
 
 ## Roadmap
@@ -106,8 +109,8 @@ infra/           Terraform (Phase 3)
 - [x] Phase 2 — weather (Open-Meteo) + macro indicators (World Bank) sources, daily-partitioned ingestion with backfills, dbt-expectations quality gates, failure alerting via webhook
 - [x] Phase 3 — public deployment at $0: GitHub Actions cron pipeline → `data` branch → GitHub Pages dashboard + Hugging Face Space API
 - [ ] Phase 3.5 — MinIO/S3 lake backend (the GASTAT portal blocks API clients at its WAF; macro data comes from the World Bank's stable API instead)
-- [ ] Phase 3 — Terraform deploy to a VM, HTTPS, uptime monitoring, live public URL
 - [ ] Phase 4 — hosted dbt docs, architecture write-up, cost/latency numbers
+- [ ] Phase 5 (optional) — Terraform deploy to an always-on VM (full Dagster UI + Metabase in the cloud), HTTPS, uptime monitoring
 
 ## Development
 

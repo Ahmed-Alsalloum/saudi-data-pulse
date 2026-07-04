@@ -121,9 +121,10 @@ async function fetchJson(name) {
                  scales: { y: { ticks: { callback: v => (v/1e6).toFixed(1)+"M" } } } }
     });
 
+    const pctCell = v => `<td class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v}%</td>`;
     document.querySelector("#movers tbody").innerHTML = session.map(r => `<tr>
-      <td>${r.sector}</td><td>${r.top_gainer}</td><td class="up">+${r.top_gainer_change_pct}%</td>
-      <td>${r.top_loser}</td><td class="down">${r.top_loser_change_pct}%</td></tr>`).join("");
+      <td>${r.sector}</td><td>${r.top_gainer}</td>${pctCell(r.top_gainer_change_pct)}
+      <td>${r.top_loser}</td>${pctCell(r.top_loser_change_pct)}</tr>`).join("");
 
     // Weather lines: one dataset per city
     const dates = [...new Set(weather.map(r => r.obs_date))].sort();
