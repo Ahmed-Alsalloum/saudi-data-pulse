@@ -9,7 +9,7 @@ Full-refresh: each run overwrites the single snapshot partition.
 
 import pandas as pd
 import requests
-from dagster import AssetExecutionContext, AssetKey, MaterializeResult, asset
+from dagster import AssetExecutionContext, AssetKey, MaterializeResult, RetryPolicy, asset
 
 from orchestration.resources import DataLakeResource
 
@@ -46,6 +46,7 @@ def tidy_econ(code: str, name: str, rows: list[dict]) -> pd.DataFrame:
     key=AssetKey(["lake", "econ_indicators"]),
     group_name="ingestion",
     description="Annual Saudi macro indicators (CPI, GDP growth, population, unemployment).",
+    retry_policy=RetryPolicy(max_retries=2, delay=20),
 )
 def econ_indicators(
     context: AssetExecutionContext, data_lake: DataLakeResource
@@ -55,7 +56,7 @@ def econ_indicators(
         response = requests.get(
             WORLD_BANK_URL.format(code=code),
             params={"format": "json", "per_page": 200},
-            timeout=30,
+            timeout=60,
         )
         response.raise_for_status()
         payload = response.json()

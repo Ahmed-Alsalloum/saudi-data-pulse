@@ -19,6 +19,7 @@ from dagster import (
     AssetKey,
     DailyPartitionsDefinition,
     MaterializeResult,
+    RetryPolicy,
     asset,
 )
 
@@ -100,6 +101,7 @@ def tidy_ohlcv(raw: pd.DataFrame, tickers: dict[str, tuple[str, str]]) -> pd.Dat
     partitions_def=daily_partitions,
     group_name="ingestion",
     description="Daily OHLCV for ~30 major Tadawul tickers, landed as Parquet in the raw zone.",
+    retry_policy=RetryPolicy(max_retries=2, delay=20),
 )
 def tadawul_prices(
     context: AssetExecutionContext, data_lake: DataLakeResource

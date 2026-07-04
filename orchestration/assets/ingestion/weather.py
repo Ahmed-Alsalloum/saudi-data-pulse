@@ -7,7 +7,7 @@ self-heals across missed runs; staging deduplicates on (city, observed_at).
 
 import pandas as pd
 import requests
-from dagster import AssetExecutionContext, AssetKey, MaterializeResult, asset
+from dagster import AssetExecutionContext, AssetKey, MaterializeResult, RetryPolicy, asset
 
 from orchestration.resources import DataLakeResource
 
@@ -43,6 +43,7 @@ def tidy_weather(city: str, payload: dict) -> pd.DataFrame:
     key=AssetKey(["lake", "weather_hourly"]),
     group_name="ingestion",
     description="Hourly temperature/humidity/wind for 6 Saudi cities, from Open-Meteo.",
+    retry_policy=RetryPolicy(max_retries=2, delay=20),
 )
 def weather_hourly(
     context: AssetExecutionContext, data_lake: DataLakeResource
@@ -59,7 +60,7 @@ def weather_hourly(
                 "forecast_days": 1,
                 "timezone": "Asia/Riyadh",
             },
-            timeout=30,
+            timeout=60,
         )
         response.raise_for_status()
         frames.append(tidy_weather(city, response.json()))
