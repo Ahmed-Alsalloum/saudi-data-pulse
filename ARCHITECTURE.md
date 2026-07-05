@@ -7,7 +7,7 @@ total infrastructure cost of $0.
 
 This document explains the design decisions and gives real operational
 numbers. The [README](README.md) covers setup; the
-[hosted dbt docs](https://akad1d.github.io/saudi-data-pulse/dbt/) cover every
+[hosted dbt docs](https://ahmed-alsalloum.github.io/saudi-data-pulse/dbt/) cover every
 model, column, and test.
 
 ## The two-runtime design

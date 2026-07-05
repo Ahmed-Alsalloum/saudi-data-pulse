@@ -69,7 +69,7 @@ def main() -> None:
     meta = {
         "updated_at": datetime.now(UTC).isoformat(),
         "row_counts": counts,
-        "source": "https://github.com/akaD1D/saudi-data-pulse",
+        "source": "https://github.com/Ahmed-Alsalloum/saudi-data-pulse",
     }
     (EXPORT_DIR / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
     print(f"wrote meta.json: {meta['updated_at']}")

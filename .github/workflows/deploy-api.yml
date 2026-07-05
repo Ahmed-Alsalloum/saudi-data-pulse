@@ -36,7 +36,7 @@ jobs:
           RUN pip install --no-cache-dir fastapi "uvicorn[standard]" duckdb requests
           COPY api/ api/
           ENV DUCKDB_PATH=/tmp/warehouse.duckdb
-          ENV WAREHOUSE_URL=https://raw.githubusercontent.com/akaD1D/saudi-data-pulse/refs/heads/data/warehouse.duckdb
+          ENV WAREHOUSE_URL=https://raw.githubusercontent.com/Ahmed-Alsalloum/saudi-data-pulse/refs/heads/data/warehouse.duckdb
           EXPOSE 7860
           CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]
           EOF
@@ -55,7 +55,7 @@ jobs:
           # Saudi Data Pulse API
 
           Live read API over a Dagster + dbt + DuckDB pipeline for Saudi open data.
-          Interactive docs at `/docs`. Source: https://github.com/akaD1D/saudi-data-pulse
+          Interactive docs at `/docs`. Source: https://github.com/Ahmed-Alsalloum/saudi-data-pulse
           EOF
 
       - name: Push to Space

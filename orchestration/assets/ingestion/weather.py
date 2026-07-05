@@ -16,7 +16,7 @@ from orchestration.resources import DataLakeResource
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 MET_NO_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
-USER_AGENT = "saudi-data-pulse/1.0 (https://github.com/akaD1D/saudi-data-pulse)"
+USER_AGENT = "saudi-data-pulse/1.0 (https://github.com/Ahmed-Alsalloum/saudi-data-pulse)"
 
 CITIES: dict[str, tuple[float, float]] = {
     "riyadh": (24.7136, 46.6753),

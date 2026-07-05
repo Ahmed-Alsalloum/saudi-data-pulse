@@ -1,6 +1,6 @@
 # Saudi Data Pulse
 
-[![CI](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/ci.yml)
+[![CI](https://github.com/Ahmed-Alsalloum/saudi-data-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Ahmed-Alsalloum/saudi-data-pulse/actions/workflows/ci.yml)
 
 A real-time analytics platform for Saudi open data. It continuously ingests
 **Tadawul stock market data**, **hourly weather for 6 Saudi cities**, and
@@ -9,12 +9,12 @@ pipeline, and serves live dashboards and a public JSON API.
 
 ## 🔴 Live
 
-- **Dashboard**: https://akad1d.github.io/saudi-data-pulse/ — live charts, refreshed hourly
-- **dbt docs**: https://akad1d.github.io/saudi-data-pulse/dbt/ — every model, column, test, and the lineage graph
+- **Dashboard**: https://ahmed-alsalloum.github.io/saudi-data-pulse/ — live charts, refreshed hourly
+- **dbt docs**: https://ahmed-alsalloum.github.io/saudi-data-pulse/dbt/ — every model, column, test, and the lineage graph
 - **API**: https://akad1d-saudi-data-pulse.hf.space/docs — live JSON API on a Hugging Face Space (may cold-start after idle)
-- **Data**: the [`data` branch](https://github.com/akaD1D/saudi-data-pulse/tree/data) holds the Parquet lake, DuckDB warehouse, and JSON exports, updated by [scheduled GitHub Actions runs](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/pipeline.yml)
+- **Data**: the [`data` branch](https://github.com/Ahmed-Alsalloum/saudi-data-pulse/tree/data) holds the Parquet lake, DuckDB warehouse, and JSON exports, updated by [scheduled GitHub Actions runs](https://github.com/Ahmed-Alsalloum/saudi-data-pulse/actions/workflows/pipeline.yml)
 
-[![Live dashboard](docs/assets/dashboard.png)](https://akad1d.github.io/saudi-data-pulse/)
+[![Live dashboard](docs/assets/dashboard.png)](https://ahmed-alsalloum.github.io/saudi-data-pulse/)
 
 The platform runs in two modes with the **same asset definitions**:
 local (Docker Compose: Dagster daemon + UI, Metabase, MinIO) and cloud
@@ -114,7 +114,7 @@ scripts/         JSON export for the dashboard
 - [x] Phase 2 — weather (Open-Meteo) + macro indicators (World Bank) sources, daily-partitioned ingestion with backfills, dbt-expectations quality gates, failure alerting via webhook
 - [x] Phase 3 — public deployment at $0: GitHub Actions cron pipeline → `data` branch → GitHub Pages dashboard + Hugging Face Space API
 - [x] Phase 3.5 — S3-compatible lake backend: Docker mode writes/reads the lake via MinIO (s3fs + DuckDB httpfs), switchable to AWS S3 with env vars only
-- [x] Phase 4 — hosted [dbt docs](https://akad1d.github.io/saudi-data-pulse/dbt/), [architecture write-up](ARCHITECTURE.md) with measured cost/latency numbers
+- [x] Phase 4 — hosted [dbt docs](https://ahmed-alsalloum.github.io/saudi-data-pulse/dbt/), [architecture write-up](ARCHITECTURE.md) with measured cost/latency numbers
 - [ ] Phase 5 (optional) — Terraform deploy to an always-on VM (full Dagster UI + Metabase in the cloud), HTTPS, uptime monitoring
 
 ## Development
