@@ -11,13 +11,17 @@
     --text: #e8ecf4; --muted: #8b96ad; --accent: #35c48d; --red: #e0596e;
   }
   * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; padding: 24px; }
+  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", Tahoma, system-ui, sans-serif; padding: 24px; }
   .container { max-width: 1100px; margin: 0 auto; }
   header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 6px; }
   h1 { font-size: 1.6rem; }
   h1 .pulse { color: var(--accent); }
-  .links a { color: var(--muted); margin-left: 14px; text-decoration: none; font-size: .9rem; }
+  .links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; }
+  .links a { color: var(--muted); text-decoration: none; font-size: .9rem; }
   .links a:hover { color: var(--accent); }
+  #lang-toggle { background: transparent; color: var(--accent); border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 12px; font-size: .85rem; cursor: pointer; font-family: inherit; }
+  #lang-toggle:hover { border-color: var(--accent); }
   #updated { color: var(--muted); font-size: .85rem; margin-bottom: 24px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
@@ -27,7 +31,7 @@
   .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
   .panel h2 { font-size: 1.05rem; margin-bottom: 14px; color: var(--text); }
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th, td { text-align: start; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; }
   .up { color: var(--accent); } .down { color: var(--red); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
@@ -40,50 +44,125 @@
 <body>
 <div class="container">
   <header>
-    <h1>Saudi Data <span class="pulse">Pulse</span></h1>
+    <h1 id="title"></h1>
     <nav class="links">
       <a href="https://github.com/akaD1D/saudi-data-pulse">GitHub</a>
-      <a href="https://github.com/akaD1D/saudi-data-pulse#api">API docs</a>
-      <a href="dbt/">dbt docs</a>
+      <a id="link-api" href="https://github.com/akaD1D/saudi-data-pulse#api"></a>
+      <a id="link-dbt" href="dbt/"></a>
+      <button id="lang-toggle"></button>
     </nav>
   </header>
-  <div id="updated">loading…</div>
-  <div id="error">Data isn't available yet — the pipeline may still be seeding. Try again in a few minutes.</div>
+  <div id="updated">…</div>
+  <div id="error"></div>
 
   <div class="cards" id="econ-cards"></div>
 
   <div class="panel">
-    <h2>Tadawul — trading volume by sector (latest session)</h2>
+    <h2 id="volume-title"></h2>
     <canvas id="volumeChart" height="110"></canvas>
   </div>
 
   <div class="grid2">
     <div class="panel">
-      <h2>Top movers by sector</h2>
-      <table id="movers"><thead><tr><th>Sector</th><th>Top gainer</th><th>%</th><th>Top loser</th><th>%</th></tr></thead><tbody></tbody></table>
+      <h2 id="movers-title"></h2>
+      <table id="movers"><thead></thead><tbody></tbody></table>
     </div>
     <div class="panel">
-      <h2>Average temperature — Saudi cities (7 days)</h2>
+      <h2 id="weather-title"></h2>
       <canvas id="weatherChart" height="180"></canvas>
     </div>
   </div>
 
-  <footer>
-    Data: Yahoo Finance (Tadawul .SR) · Open-Meteo · World Bank —
-    pipeline: Dagster + dbt + DuckDB, orchestrated by GitHub Actions ·
-    <a href="https://github.com/akaD1D/saudi-data-pulse">source</a>
-  </footer>
+  <footer id="footer"></footer>
 </div>
 
 <script>
 const BASE = "https://raw.githubusercontent.com/akaD1D/saudi-data-pulse/refs/heads/data/exports";
 const CITY_COLORS = { riyadh:"#35c48d", jeddah:"#5b9dfa", dammam:"#e0a34e", makkah:"#e0596e", madinah:"#a97ff2", abha:"#4ecbd8" };
-const ECON_LABELS = {
-  "FP.CPI.TOTL.ZG": ["Inflation (CPI)", v => v.toFixed(2) + "%"],
-  "NY.GDP.MKTP.KD.ZG": ["GDP growth", v => v.toFixed(2) + "%"],
-  "SP.POP.TOTL": ["Population", v => (v/1e6).toFixed(1) + "M"],
-  "SL.UEM.TOTL.ZS": ["Unemployment", v => v.toFixed(1) + "%"],
+
+// ---------------------------------------------------------------- i18n
+const UI = {
+  en: {
+    title: 'Saudi Data <span class="pulse">Pulse</span>',
+    linkApi: "API docs", linkDbt: "dbt docs", toggle: "العربية",
+    updated: d => `Last updated ${d} (auto-refreshes hourly via GitHub Actions)`,
+    error: "Data isn't available yet — the pipeline may still be seeding. Try again in a few minutes.",
+    econFooter: y => `Saudi Arabia · ${y} · World Bank`,
+    volumeTitle: "Tadawul — trading volume by sector (latest session)",
+    session: d => `Session: ${d}`,
+    moversTitle: "Top movers by sector",
+    moversHead: ["Sector", "Top gainer", "%", "Top loser", "%"],
+    weatherTitle: "Average temperature — Saudi cities (7 days)",
+    footer: `Data: Yahoo Finance (Tadawul .SR) · Open-Meteo · World Bank —
+      pipeline: Dagster + dbt + DuckDB, orchestrated by GitHub Actions ·
+      <a href="https://github.com/akaD1D/saudi-data-pulse">source</a>`,
+    locale: undefined,
+    econ: {
+      "FP.CPI.TOTL.ZG": "Inflation (CPI)", "NY.GDP.MKTP.KD.ZG": "GDP growth",
+      "SP.POP.TOTL": "Population", "SL.UEM.TOTL.ZS": "Unemployment",
+    },
+    millions: "M",
+  },
+  ar: {
+    title: 'نبض البيانات <span class="pulse">السعودية</span>',
+    linkApi: "وثائق API", linkDbt: "وثائق dbt", toggle: "English",
+    updated: d => `آخر تحديث ${d} (يتحدّث تلقائياً كل ساعة عبر GitHub Actions)`,
+    error: "البيانات غير متوفرة بعد — قد يكون خط الأنابيب قيد التهيئة. حاول مجدداً بعد دقائق.",
+    econFooter: y => `السعودية · ${y} · البنك الدولي`,
+    volumeTitle: "تداول — حجم التداول حسب القطاع (آخر جلسة)",
+    session: d => `الجلسة: ${d}`,
+    moversTitle: "أبرز المتحركين حسب القطاع",
+    moversHead: ["القطاع", "الأكثر ارتفاعاً", "%", "الأكثر انخفاضاً", "%"],
+    weatherTitle: "متوسط درجات الحرارة — مدن سعودية (7 أيام)",
+    footer: `البيانات: Yahoo Finance (تداول .SR) · Open-Meteo · البنك الدولي —
+      خط الأنابيب: Dagster + dbt + DuckDB بتشغيل GitHub Actions ·
+      <a href="https://github.com/akaD1D/saudi-data-pulse">المصدر</a>`,
+    locale: "ar-SA-u-ca-gregory-nu-latn",
+    econ: {
+      "FP.CPI.TOTL.ZG": "التضخم (مؤشر أسعار المستهلك)", "NY.GDP.MKTP.KD.ZG": "نمو الناتج المحلي الإجمالي",
+      "SP.POP.TOTL": "عدد السكان", "SL.UEM.TOTL.ZS": "البطالة",
+    },
+    millions: "م",
+  },
 };
+const ECON_FMT = {
+  "FP.CPI.TOTL.ZG": v => v.toFixed(2) + "%",
+  "NY.GDP.MKTP.KD.ZG": v => v.toFixed(2) + "%",
+  "SP.POP.TOTL": v => (v/1e6).toFixed(1) + (lang === "ar" ? " مليون" : "M"),
+  "SL.UEM.TOTL.ZS": v => v.toFixed(1) + "%",
+};
+const SECTOR_AR = {
+  "Energy": "الطاقة", "Financials": "المالية", "Insurance": "التأمين",
+  "Materials": "المواد الأساسية", "Telecom": "الاتصالات", "Utilities": "المرافق العامة",
+  "Consumer Staples": "السلع الأساسية", "Consumer Discretionary": "السلع الكمالية",
+  "Health Care": "الرعاية الصحية", "Real Estate": "العقارات",
+};
+const COMPANY_AR = {
+  "Saudi Aramco": "أرامكو السعودية", "Petro Rabigh": "بترو رابغ", "Arabian Drilling": "الحفر العربية",
+  "Luberef": "لوبريف", "Bahri": "البحري", "Al Rajhi Bank": "مصرف الراجحي",
+  "Saudi National Bank": "البنك الأهلي السعودي", "Riyad Bank": "بنك الرياض",
+  "Alinma Bank": "مصرف الإنماء", "Saudi Awwal Bank": "البنك السعودي الأول",
+  "Saudi Tadawul Group": "مجموعة تداول السعودية", "Bupa Arabia": "بوبا العربية",
+  "Tawuniya": "التعاونية", "SABIC": "سابك", "Ma'aden": "معادن",
+  "SABIC Agri-Nutrients": "سابك للمغذيات الزراعية", "stc": "إس تي سي", "Mobily": "موبايلي",
+  "ACWA Power": "أكوا باور", "Saudi Electricity": "السعودية للكهرباء", "Almarai": "المراعي",
+  "Savola": "صافولا", "Abdullah Al Othaim Markets": "أسواق عبدالله العثيم",
+  "Jarir Marketing": "جرير للتسويق", "Saudi Airlines Catering": "السعودية للتموين",
+  "Dr Sulaiman Al Habib": "د. سليمان الحبيب", "Mouwasat Medical Services": "المواساة للخدمات الطبية",
+  "Dar Al Arkan": "دار الأركان",
+};
+const CITY_NAMES = {
+  en: { riyadh:"Riyadh", jeddah:"Jeddah", dammam:"Dammam", makkah:"Makkah", madinah:"Madinah", abha:"Abha" },
+  ar: { riyadh:"الرياض", jeddah:"جدة", dammam:"الدمام", makkah:"مكة المكرمة", madinah:"المدينة المنورة", abha:"أبها" },
+};
+
+let lang = new URLSearchParams(location.search).get("lang") || localStorage.getItem("lang") || "en";
+if (!UI[lang]) lang = "en";
+const t = () => UI[lang];
+const trSector = s => lang === "ar" ? (SECTOR_AR[s] || s) : s;
+const trCompany = c => lang === "ar" ? (COMPANY_AR[c] || c) : c;
+const trCity = c => CITY_NAMES[lang][c] || c;
+
 Chart.defaults.color = "#8b96ad";
 Chart.defaults.borderColor = "#2a3550";
 
@@ -93,50 +172,86 @@ async function fetchJson(name) {
   return r.json();
 }
 
+let data = null;          // { meta, market, weather, econ } once fetched
+let charts = [];          // live Chart instances, destroyed on re-render
+
+function render() {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  localStorage.setItem("lang", lang);
+
+  document.getElementById("title").innerHTML = t().title;
+  document.getElementById("link-api").textContent = t().linkApi;
+  document.getElementById("link-dbt").textContent = t().linkDbt;
+  document.getElementById("lang-toggle").textContent = t().toggle;
+  document.getElementById("error").textContent = t().error;
+  document.getElementById("volume-title").textContent = t().volumeTitle;
+  document.getElementById("movers-title").textContent = t().moversTitle;
+  document.getElementById("weather-title").textContent = t().weatherTitle;
+  document.getElementById("footer").innerHTML = t().footer;
+  document.querySelector("#movers thead").innerHTML =
+    `<tr>${t().moversHead.map(h => `<th>${h}</th>`).join("")}</tr>`;
+
+  if (!data) return;
+  const { meta, market, weather, econ } = data;
+
+  charts.forEach(c => c.destroy());
+  charts = [];
+
+  document.getElementById("updated").textContent =
+    t().updated(new Date(meta.updated_at).toLocaleString(t().locale));
+
+  // Econ cards: latest year per indicator
+  const latest = {};
+  econ.forEach(r => { if (!latest[r.indicator_code] || r.year > latest[r.indicator_code].year) latest[r.indicator_code] = r; });
+  document.getElementById("econ-cards").innerHTML = Object.entries(t().econ)
+    .filter(([code]) => latest[code])
+    .map(([code, label]) => `<div class="card"><div class="label">${label}</div>
+      <div class="value">${ECON_FMT[code](latest[code].value)}</div><div class="year">${t().econFooter(latest[code].year)}</div></div>`)
+    .join("");
+
+  // Latest trading session slice
+  const latestDate = market.reduce((m,r) => r.trade_date > m ? r.trade_date : m, "");
+  const session = market.filter(r => r.trade_date === latestDate);
+
+  charts.push(new Chart(document.getElementById("volumeChart"), {
+    type: "bar",
+    data: { labels: session.map(r => trSector(r.sector)),
+            datasets: [{ data: session.map(r => r.total_volume), backgroundColor: "#35c48d88", borderColor: "#35c48d", borderWidth: 1 }] },
+    options: { plugins: { legend: { display:false }, title: { display:true, text: t().session(latestDate) } },
+               scales: { y: { ticks: { callback: v => (v/1e6).toFixed(1) + t().millions } } } }
+  }));
+
+  const pctCell = v => `<td class="${v >= 0 ? "up" : "down"}" dir="ltr">${v >= 0 ? "+" : ""}${v}%</td>`;
+  document.querySelector("#movers tbody").innerHTML = session.map(r => `<tr>
+    <td>${trSector(r.sector)}</td><td>${trCompany(r.top_gainer)}</td>${pctCell(r.top_gainer_change_pct)}
+    <td>${trCompany(r.top_loser)}</td>${pctCell(r.top_loser_change_pct)}</tr>`).join("");
+
+  // Weather lines: one dataset per city
+  const dates = [...new Set(weather.map(r => r.obs_date))].sort();
+  const cities = [...new Set(weather.map(r => r.city))];
+  charts.push(new Chart(document.getElementById("weatherChart"), {
+    type: "line",
+    data: { labels: dates, datasets: cities.map(c => ({
+      label: trCity(c), data: dates.map(d => (weather.find(r => r.city===c && r.obs_date===d) || {}).avg_temperature_c ?? null),
+      borderColor: CITY_COLORS[c] || "#8b96ad", backgroundColor: "transparent", tension: .3, pointRadius: 2 })) },
+    options: { plugins: { legend: { position: "bottom" } }, scales: { y: { title: { display:true, text:"°C" } } } }
+  }));
+}
+
+document.getElementById("lang-toggle").addEventListener("click", () => {
+  lang = lang === "en" ? "ar" : "en";
+  render();
+});
+
+render(); // static chrome immediately, in the saved language
+
 (async () => {
   try {
     const [meta, market, weather, econ] = await Promise.all(
       ["meta.json","market_summary.json","weather_daily.json","econ.json"].map(fetchJson));
-
-    document.getElementById("updated").textContent =
-      "Last updated " + new Date(meta.updated_at).toLocaleString() + " (auto-refreshes hourly via GitHub Actions)";
-
-    // Econ cards: latest year per indicator
-    const latest = {};
-    econ.forEach(r => { if (!latest[r.indicator_code] || r.year > latest[r.indicator_code].year) latest[r.indicator_code] = r; });
-    document.getElementById("econ-cards").innerHTML = Object.entries(ECON_LABELS)
-      .filter(([code]) => latest[code])
-      .map(([code,[label,fmt]]) => `<div class="card"><div class="label">${label}</div>
-        <div class="value">${fmt(latest[code].value)}</div><div class="year">Saudi Arabia · ${latest[code].year} · World Bank</div></div>`)
-      .join("");
-
-    // Latest trading session slice
-    const latestDate = market.reduce((m,r) => r.trade_date > m ? r.trade_date : m, "");
-    const session = market.filter(r => r.trade_date === latestDate);
-
-    new Chart(document.getElementById("volumeChart"), {
-      type: "bar",
-      data: { labels: session.map(r => r.sector),
-              datasets: [{ data: session.map(r => r.total_volume), backgroundColor: "#35c48d88", borderColor: "#35c48d", borderWidth: 1 }] },
-      options: { plugins: { legend: { display:false }, title: { display:true, text: `Session: ${latestDate}` } },
-                 scales: { y: { ticks: { callback: v => (v/1e6).toFixed(1)+"M" } } } }
-    });
-
-    const pctCell = v => `<td class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v}%</td>`;
-    document.querySelector("#movers tbody").innerHTML = session.map(r => `<tr>
-      <td>${r.sector}</td><td>${r.top_gainer}</td>${pctCell(r.top_gainer_change_pct)}
-      <td>${r.top_loser}</td>${pctCell(r.top_loser_change_pct)}</tr>`).join("");
-
-    // Weather lines: one dataset per city
-    const dates = [...new Set(weather.map(r => r.obs_date))].sort();
-    const cities = [...new Set(weather.map(r => r.city))];
-    new Chart(document.getElementById("weatherChart"), {
-      type: "line",
-      data: { labels: dates, datasets: cities.map(c => ({
-        label: c, data: dates.map(d => (weather.find(r => r.city===c && r.obs_date===d) || {}).avg_temperature_c ?? null),
-        borderColor: CITY_COLORS[c] || "#8b96ad", backgroundColor: "transparent", tension: .3, pointRadius: 2 })) },
-      options: { plugins: { legend: { position: "bottom" } }, scales: { y: { title: { display:true, text:"°C" } } } }
-    });
+    data = { meta, market, weather, econ };
+    render();
   } catch (e) {
     console.error(e);
     document.getElementById("updated").textContent = "";
