@@ -16,46 +16,12 @@ pipeline, and serves live dashboards and a public JSON API.
 
 [![Live dashboard](docs/assets/dashboard.png)](https://ahmed-alsalloum.github.io/saudi-data-pulse/)
 
-The platform runs in two modes with the **same asset definitions**:
-local (Docker Compose: Dagster daemon + UI, Metabase, MinIO) and cloud
-(GitHub Actions invokes the identical Dagster assets on cron — $0 hosting).
-
-Built to demonstrate production data-engineering practices end to end:
-asset-based orchestration, ELT with tested transformations, data-quality
-gates that block bad data, and infrastructure as code.
-
-## Architecture
-
-Design decisions, trade-offs, and measured performance numbers live in
-[ARCHITECTURE.md](ARCHITECTURE.md).
-
-```
-yfinance (.SR tickers)     World Bank API (SAU)      Open-Meteo (6 cities)
-   daily, partitioned         weekly snapshot            hourly
-        │                              │                        │
-        └──────────────┬───────────────┴────────────────────────┘
-                       ▼
-              Dagster ingestion assets
-                       │
-                       ▼
-        Data lake — raw zone (Parquet, partitioned by date)
-          local folder / MinIO (Docker) / S3 (prod)
-                       │
-                       ▼
-              dbt on DuckDB  ──  staging views + data-quality tests
-                       │            (failing tests block the marts)
-                       ▼
-              analytics marts (daily_market_summary, …)
-                       │
-            ┌──────────┴──────────┐
-            ▼                     ▼
-     Metabase dashboards    FastAPI read API
-```
-
-Orchestration is **Dagster** (asset-based; the concepts map 1:1 to Airflow
-DAGs). Transformations are **dbt** with the DuckDB adapter. Everything is
-addressed through two env vars (`DATA_LAKE_PATH`, `DUCKDB_PATH`) so the same
-code runs on a laptop, in Docker Compose, or on a cloud VM.
+**Stack**: Dagster (asset-based orchestration) → Parquet lake (local folder /
+MinIO / S3) → dbt on DuckDB with data-quality gates that block bad data →
+FastAPI, Metabase, and a static dashboard. One set of asset definitions runs
+in two runtimes — Docker Compose locally, GitHub Actions cron in the cloud at
+$0 — switched by env vars alone. Design decisions, trade-offs, and measured
+performance numbers live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Quickstart (native, no Docker)
 
@@ -88,15 +54,6 @@ docker compose up --build
 - API → http://localhost:8000/docs
 - Metabase → http://localhost:3001 (add the [DuckDB community driver](https://github.com/motherduckdb/metabase_duckdb_driver) jar to `./metabase-plugins/` first, then connect it to `/data/warehouse.duckdb`)
 - MinIO console → http://localhost:9001 (`minioadmin`/`minioadmin`) — in Docker the lake is real object storage: Dagster writes `s3://lake/...` through s3fs and dbt/DuckDB reads it back through httpfs, the same code path an AWS S3 deployment would use
-
-## API
-
-| Endpoint | Description |
-| --- | --- |
-| `GET /api/v1/market/summary` | Per-sector daily performance (volume, avg move, top gainer/loser) |
-| `GET /api/v1/market/prices/{ticker}` | Recent daily OHLCV for one ticker, e.g. `2222.SR` |
-| `GET /api/v1/weather/{city}` | Recent hourly observations, e.g. `riyadh`, `jeddah`, `dammam` |
-| `GET /api/v1/econ` | Latest Saudi macro indicators (CPI, GDP growth, population, unemployment) |
 
 ## Project layout
 
