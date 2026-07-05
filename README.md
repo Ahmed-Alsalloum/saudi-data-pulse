@@ -11,7 +11,7 @@ pipeline, and serves live dashboards and a public JSON API.
 
 - **Dashboard**: https://akad1d.github.io/saudi-data-pulse/ — live charts, refreshed hourly
 - **dbt docs**: https://akad1d.github.io/saudi-data-pulse/dbt/ — every model, column, test, and the lineage graph
-- **API**: hosted on a Hugging Face Space (interactive docs at `/docs`)
+- **API**: https://akad1d-saudi-data-pulse.hf.space/docs — live JSON API on a Hugging Face Space (may cold-start after idle)
 - **Data**: the [`data` branch](https://github.com/akaD1D/saudi-data-pulse/tree/data) holds the Parquet lake, DuckDB warehouse, and JSON exports, updated by [scheduled GitHub Actions runs](https://github.com/akaD1D/saudi-data-pulse/actions/workflows/pipeline.yml)
 
 [![Live dashboard](docs/assets/dashboard.png)](https://akad1d.github.io/saudi-data-pulse/)
