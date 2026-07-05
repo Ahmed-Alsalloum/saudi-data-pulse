@@ -3,6 +3,11 @@ version: 2
 models:
   - name: stg_tadawul_prices
     description: Cleaned, deduplicated daily prices — one row per ticker per trading day.
+    tests:
+      # Row-count floor: the recency/not-null gates all pass vacuously on an
+      # empty table, so an ingestion outage would otherwise go unnoticed.
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 1
     columns:
       - name: trade_date
         tests:
@@ -29,6 +34,9 @@ models:
 
   - name: stg_weather
     description: Deduplicated hourly weather — one row per city per hour.
+    tests:
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 1
     columns:
       - name: observed_at
         tests:
@@ -51,6 +59,9 @@ models:
 
   - name: stg_econ_indicators
     description: Annual Saudi macro indicators, one row per indicator per year.
+    tests:
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 1
     columns:
       - name: indicator_code
         tests: [not_null]

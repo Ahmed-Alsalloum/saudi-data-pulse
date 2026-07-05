@@ -66,7 +66,7 @@ for a VM.
    httpfs extension). Pointing at real AWS S3 is a config change, not a code
    change.
 3. **Transform (dbt on DuckDB)** — staging models read the Parquet globs as
-   external sources; marts aggregate them into serving tables. 23 data tests
+   external sources; marts aggregate them into serving tables. 26 data tests
    (dbt-generic + dbt-expectations, including recency gates) run in the same
    `dbt build` as the models, so **bad data blocks the marts** instead of
    landing in them. Every model is materialized as a `table`: the warehouse
@@ -84,7 +84,7 @@ for a VM.
 | Scheduled pipeline, end to end | avg 94s over 6 runs (min 74s, max 170s) |
 | — pip install (cached) | 43s |
 | — Tadawul ingestion (one session, 14 tickers) | 11s |
-| — dbt build: 5 models + 23 tests | 19s |
+| — dbt build: 5 models + 26 tests | 19s |
 | — JSON export + data-branch push | ~2s |
 | API latency, `/api/v1/market/summary` (warm, local Docker) | p50 19 ms · p95 21 ms |
 | DuckDB warehouse file | 1.8 MB |
@@ -128,9 +128,11 @@ milliseconds because the marts are pre-aggregated tables in a columnar file.
 
 ## Known gaps and next steps
 
-- dbt-expectations recency gates pass vacuously when a staging table is
+- ~~dbt-expectations recency gates pass vacuously when a staging table is
   completely empty (confirmed in practice: an empty mart passed all its
-  not-null tests). A row-count floor test would close this.
+  not-null tests).~~ Closed: each staging model now carries a
+  `expect_table_row_count_to_be_between(min_value=1)` floor, so a silent
+  ingestion outage fails the build instead of slipping through.
 - The GitHub-hosted lake keeps whole-file history; Parquet partitions are
   append-only, so the branch grows unbounded — fine for years at current
   volume, but S3 + lifecycle rules is the real answer.

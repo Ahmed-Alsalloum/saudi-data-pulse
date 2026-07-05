@@ -13,6 +13,9 @@ on:
       backfill_partition:
         description: "Optional YYYY-MM-DD Tadawul partition to backfill"
         required: false
+      backfill_range:
+        description: "Optional START:END (YYYY-MM-DD:YYYY-MM-DD) bulk Tadawul backfill"
+        required: false
 
 permissions:
   contents: write
@@ -79,6 +82,12 @@ jobs:
           fi
           echo "Materializing Tadawul partition $PARTITION"
           dagster asset materialize --select "lake/tadawul_prices" --partition "$PARTITION" -m orchestration.definitions
+
+      - name: Bulk backfill Tadawul range
+        if: inputs.backfill_range != ''
+        run: |
+          IFS=: read -r START END <<< "${{ inputs.backfill_range }}"
+          python scripts/backfill_tadawul.py --start "$START" --end "$END"
 
       - name: Transform + quality gates (dbt build)
         run: dagster asset materialize --select "stg_tadawul_prices+,stg_weather+,stg_econ_indicators+" -m orchestration.definitions
